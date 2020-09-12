@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Medicalanalysis</class>
+ <widget class="QMainWindow" name="Medicalanalysis">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>810</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="windowTitle">
+   <string>医学影像分析</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
+   <property name="sizePolicy">
+    <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+     <horstretch>0</horstretch>
+     <verstretch>0</verstretch>
+    </sizepolicy>
+   </property>
+   <property name="autoFillBackground">
+    <bool>false</bool>
+   </property>
+   <layout class="QFormLayout" name="formLayout">
+    <item row="0" column="0" colspan="2">
+     <layout class="QGridLayout" name="main_layout" columnstretch="3,5">
+      <item row="0" column="0">
+       <layout class="QVBoxLayout" name="menulayer" stretch="1,1,1,1,4,6">
+        <property name="sizeConstraint">
+         <enum>QLayout::SetDefaultConstraint</enum>
+        </property>
+        <property name="rightMargin">
+         <number>0</number>
+        </property>
+        <item>
+         <layout class="QHBoxLayout" name="horizontalLayout" stretch="3,2">
+          <item>
+           <widget class="QLabel" name="title">
+            <property name="text">
+             <string>医学影像诊断分析</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="languages"/>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="foldlayer" stretch="3,1,2">
+          <item>
+           <widget class="QLineEdit" name="foldname">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string>图片目录</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QToolButton" name="fold_select">
+            <property name="text">
+             <string>...</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="imgfile"/>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="imglayer">
+          <item>
+           <widget class="QLabel" name="id_label">
+            <property name="text">
+             <string>频道</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="id">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="length_label">
+            <property name="text">
+             <string>长</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="length">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLabel" name="width_label">
+            <property name="text">
+             <string>宽</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QLineEdit" name="width">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="modellayer" stretch="0,2,1">
+          <item>
+           <widget class="QLabel" name="label_4">
+            <property name="text">
+             <string>模型选择：</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="models"/>
+          </item>
+          <item>
+           <widget class="QPushButton" name="analysis">
+            <property name="text">
+             <string>开始诊断</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="outputlayer" stretch="3">
+          <item>
+           <layout class="QVBoxLayout" name="resultlayer">
+            <item>
+             <widget class="QGraphicsView" name="resultview"/>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="consolelayer">
+          <item>
+           <widget class="QTextEdit" name="console"/>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+      <item row="0" column="1">
+       <layout class="QVBoxLayout" name="imgshowlayer" stretch="1,15">
+        <item>
+         <layout class="QHBoxLayout" name="imgselectlayer">
+          <item>
+           <widget class="QPushButton" name="rawimg">
+            <property name="text">
+             <string>原图</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="t1">
+            <property name="text">
+             <string>脑实质</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="t2">
+            <property name="text">
+             <string>脑室内</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="t3">
+            <property name="text">
+             <string>膜下腔</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="t4">
+            <property name="text">
+             <string>硬脑膜下</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="t5">
+            <property name="text">
+             <string>硬膜外阻滞</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="imageshow">
+          <item>
+           <widget class="QGraphicsView" name="photoview"/>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -8,6 +8,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT
 import matplotlib.pyplot as plt
 from predict_model import get_predict, BASE
+from predict_model import PATH_MODEL
 
 # matplotlib绘图画布
 class ImageView(FigureCanvas):
@@ -91,6 +92,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.plot_figure = ImageView(width=8, height=8, dpi=110)
         self.tool = NavigationToolbar2QT(self.plot_figure, self)
         if filepath[-3:] == "dcm":
+            # FIXME
             # 读取dicom文件
             _slice = pydicom.read_file(filepath)
 
@@ -100,16 +102,16 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.width.setText(str(_slice.pixel_array.shape[0]))
 
             # 获取dicom数据，绘图
-            image = np.stack(_slice.pixel_array)
-            image = image.astype(np.int16)
-            image = np.array(image)
+            self.image = np.stack(_slice.pixel_array)
+            self.image = self.image.astype(np.int16)
+            self.image = np.array(self.image)
         else:
-            image = plt.imread(filepath)
+            self.image = plt.imread(filepath)
             self.id.setText(" ")
-            self.length.setText(str(image.shape[1]))
-            self.width.setText(str(image.shape[0]))
+            self.length.setText(str(self.image.shape[1]))
+            self.width.setText(str(self.image.shape[0]))
 
-        plt.imshow(image, cmap=plt.cm.gray)
+        plt.imshow(self.image, cmap=plt.cm.gray)
 
         self.imageshow.addWidget(self.plot_figure)
         self.imageshow.addWidget(self.tool)
@@ -187,15 +189,6 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         }
         i = 0
 
-        prabobility_ = [
-            1.0000e00,
-            7.6311e-05,
-            9.9868e-01,
-            9.9763e-01,
-            8.1377e-01,
-            9.8775e-01,
-        ]
-
         for (key, item) in results.items():
             results[key] = round(result_values[i].item(), 2)
             # results[key] = round(prabobility_[i] * 100, 2)
@@ -226,7 +219,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             i += 1
 
         self.resultlayer.addWidget(self.result_figure)
-        self.console.append("Results come out")
+        self.console.append("Results:")
         self.t1_t5()
 
     def show_result_img(self, signal):
@@ -250,30 +243,31 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.t3.setDisabled(True)
         elif signal == 4:
             self.t4.setDisabled(True)
-
-        else:
+        elif signal == 5:
             self.t5.setDisabled(True)
+        else:
+            raise Exception('Incorrect Signal Tossed!')
 
         self.plot_figure = ImageView(width=8, height=8, dpi=110)
         self.tool = NavigationToolbar2QT(self.plot_figure, self)
 
-        image = plt.imread(BASE + "/data/" + str(signal) + ".png")
-        self.id.setText("631d342a4")
-        self.length.setText(str(image.shape[1]))
-        self.width.setText(str(image.shape[0]))
+        import grad_cam
+        image = grad_cam.gc_(self.image, signal, PATH_MODEL)
 
+        if image.shape[0] == 3:
+            image = image[0]
         plt.imshow(image)
 
         self.imageshow.addWidget(self.plot_figure)
         self.imageshow.addWidget(self.tool)
         # 显示大标题
         name_list = [
-            "any",
-            "epidural",
-            "intraparenchymal",
-            "intraventricular",
-            "subarachnoid",
-            "subdural",
+            "Any",
+            "Epidural",
+            "Intraparenchymal",
+            "Intraventricular",
+            "Subarachnoid",
+            "Subdural",
         ]
         if signal == 1:
             title = f"{name_list[signal]} - NO"

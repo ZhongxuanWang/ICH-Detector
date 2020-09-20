@@ -1,10 +1,11 @@
 import os
 import torch
-import numpy as np  # linear algebra
-from models.code.models import MainModel
+import numpy as np
 from argparse import Namespace
 from PIL import Image
 from torchvision import transforms
+
+from models import MainModel
 
 ct_mean = 0.188
 ct_std = 0.315
@@ -14,9 +15,9 @@ from time import time
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
-MODEL = BASE + "/models/model_densenet201.pt"
+PATH_MODEL = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
 
-state_dict = torch.load(MODEL)
+state_dict = torch.load(PATH_MODEL)
 
 
 def get_predict(slices_0, flag):
@@ -35,21 +36,12 @@ def get_predict(slices_0, flag):
         image = Image.open(slices_0)
 
     opts = Namespace(
-        seed=123,
-        data_dir="../",
-        num_workers=0,
-        use_gpu=False,
-        batch_size=32,
         arch="densenet201",
-        pretrained=True,
-        lr=1e-4,
-        epochs=30,
-        lr_decay_ep=31,
-        is_train=False,
         time_start=time(),
     )
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model = MainModel(opts.arch, 6, pretrained=opts.pretrained)
+    model = MainModel(opts.arch, 6)
     model.load_state_dict(state_dict)
     image_tensor = image_transform(image)
     image_tensor.unsqueeze_(0)

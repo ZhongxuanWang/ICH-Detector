@@ -1,14 +1,32 @@
 import sys
 from PyQt5 import QtWidgets
-from medical_ui import Ui_Medicalanalysis
-import os
 import numpy as np
 import pydicom
+import torch
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT
 import matplotlib.pyplot as plt
-from predict_model import get_predict, BASE
-from predict_model import PATH_MODEL
+from .functions import preprocess
+from PIL import Image
+
+from medical_ui import Ui_Medicalanalysis
+from models import MainModel
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+DENSENET_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
+RESNET_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
+VGG_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
+MODEL_PATH = [DENSENET_PATH, RESNET_PATH, VGG_PATH]
+
+DenseNet_Model = MainModel('densenet201', 6)
+Resnet_Model = MainModel('resnet101', 6)
+VGG_Model = MainModel('vgg19', 6)
+Models = [DenseNet_Model, Resnet_Model, VGG_Model]
+
+ct_mean = 0.188
+ct_std = 0.315
+
+# state_dict = torch.load(PATH_MODEL)
 
 # matplotlib绘图画布
 class ImageView(FigureCanvas):
@@ -34,7 +52,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.fold_select.clicked.connect(self.folddialog)
         self.imgfile.activated.connect(self.start_analysis)
         self.languages.activated.connect(self.change_language)
-        self.analysis.clicked.connect(self.model_analysis)
+        self.analysis.clicked.connect(self.start_prediction)
 
         self.rawimg.clicked.connect(lambda: self.show_result_img(0))
         self.t1.clicked.connect(lambda: self.show_result_img(1))
@@ -64,7 +82,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             file_types = ["dcm", "png", "jpg"]
             files = [f for f in os.listdir(fold) if f[-3:] in file_types]
             if len(files) == 0:
-                self.console.append("There is no image files.")
+                self.console.append("There is no jpg / png / dcm format files in this directory.")
             else:
                 files.sort()
 
@@ -73,7 +91,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
                 self.analysis.setDisabled(False)
                 self.start_analysis()
         else:
-            self.console.append("Chose a true fold.")
+            self.console.append("Please choose a folder.")
 
     # 开始对dicom文件解析，绘图
     def start_analysis(self):
@@ -83,8 +101,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.imageshow.removeWidget(self.tool)
         except:
             self.imageshow.removeWidget(self.photoview)
-        finally:
-            pass
+        # finally:
+        #     pass
 
         filename = self.imgfile.currentText()
         filepath = os.path.join(self.fold, filename)
@@ -159,41 +177,48 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.t5.setText("硬脑膜下")
 
     # 程序model分析模块
-    def model_analysis(self):
-        self.console.append("Start detecting...")
-        # 绘图
+    def start_prediction(self):
+        self.console.append("Preprocessing...")
+        self.console.append("Running...")
         try:
             self.resultlayer.removeWidget(self.result_figure)
         except:
             self.resultlayer.removeWidget(self.resultview)
         finally:
             pass
-        # 获取model分析数据..
         filepath = self.filepath
-        _img = filepath.split("/")[-1]
-        if filepath[-3:] == "dcm":
-            # 读取dicom文件
-            _slice = pydicom.read_file(filepath)
-            result_values = get_predict(_slice, flag=0)
+        try:
+            if filepath[-3:] == "dcm":
+                # 读取dicom文件
+                image = preprocess(filepath)
+            else:
+                image = Image.imread(filepath)
+        except:
+            self.console.append('ERROR Encountered while processing')
 
-        else:
-            result_values = get_predict(filepath, flag=1)
+        image = torch.tensor(image[None, None, ...], dtype=torch.float32) / 255
+        image = (image - ct_mean) / ct_std
+        image = image.expand(-1, 3, -1, -1)
+
+        current_model_index = self.models.currentIndex()
+
+
 
         results = {
-            "Any": 18.00,
-            "Epidural": 32.00,
-            "Intraparenchymal": 43.00,
-            "Intraventricular": 17.00,
-            "Subarachnoid": 90.00,
-            "Subdural": 21.00,
+            "Any": 0.0,
+            "Epidural": 0.0,
+            "Intraparenchymal": 0.0,
+            "Intraventricular": 0.0,
+            "Subarachnoid": 0.0,
+            "Subdural": 0.0,
         }
         i = 0
 
-        for (key, item) in results.items():
-            results[key] = round(result_values[i].item(), 2)
-            # results[key] = round(prabobility_[i] * 100, 2)
-
-            i += 1
+        # for (key, item) in results.items():
+        #     results[key] = round(result_values[i].item(), 2)
+        #     # results[key] = round(prabobility_[i] * 100, 2)
+        #
+        #     i += 1
 
         self.result_figure = ImageView(width=3, height=2, dpi=80)
         labels = list(results.keys())
@@ -251,8 +276,9 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.plot_figure = ImageView(width=8, height=8, dpi=110)
         self.tool = NavigationToolbar2QT(self.plot_figure, self)
 
+        selected_index = self.models.currentIndex()
         import grad_cam
-        image = grad_cam.gc_(self.image, signal, PATH_MODEL)
+        image = grad_cam.gc_(self.image, signal, MODEL_PATH[selected_index])
 
         if image.shape[0] == 3:
             image = image[0]
@@ -270,9 +296,9 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             "Subdural",
         ]
         if signal == 1:
-            title = f"{name_list[signal]} - NO"
+            title = f"{name_list[signal]} - Not Diagnosed"
         else:
-            title = f"{name_list[signal]} - YES"
+            title = f"{name_list[signal]} - Diagnosed"
         self.plot_figure.fig.suptitle(title)
 
     def t1_t5(self):

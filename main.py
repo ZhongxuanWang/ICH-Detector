@@ -7,7 +7,7 @@ import torch
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT
 import matplotlib.pyplot as plt
-from PIL import Image
+from skimage.io import imsave, imread
 
 from functions import preprocess, grad_cam
 from medical_ui import Ui_Medicalanalysis
@@ -84,7 +84,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
     # 打开文件夹对话框
     def folddialog(self):
         fold = QtWidgets.QFileDialog.getExistingDirectory(self)
-        self.console.append(f"Currently Directory is set to: {fold}")
+        self.console.append(f"[INFO] Currently Directory is set to: {fold}")
         # 确定是否为有效的文件夹
         if os.path.isdir(fold):
             self.foldname.setText(fold)
@@ -94,7 +94,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             file_types = ["dcm", "png", "jpg"]
             files = [f for f in os.listdir(fold) if f[-3:] in file_types]
             if len(files) == 0:
-                self.console.append("There is no jpg / png / dcm format files in this directory.")
+                self.console.append("[WARNING] There is no jpg / png / dcm format files in this directory.")
             else:
                 files.sort()
 
@@ -103,7 +103,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
                 self.analysis.setDisabled(False)
                 self.start_analysis()
         else:
-            self.console.append("Please choose a folder to start.")
+            self.console.append("[WARNING] Please choose a folder to start.")
 
     # 开始对dicom文件解析，绘图
     def start_analysis(self):
@@ -118,7 +118,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
         filename = self.imgfile.currentText()
         filepath = os.path.join(self.fold, filename)
-        self.console.append(f"Showing:{filename}")
+        self.console.append(f"[INFO] Showing:{filename}")
 
         self.filepath = filepath
         self.plot_figure = ImageView(width=8, height=8, dpi=110)
@@ -191,7 +191,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
     # 程序model分析模块
     def start_prediction(self):
-        self.console.append("Running...")
+        self.console.append("[INFO] Process starts")
         try:
             self.resultlayer.removeWidget(self.result_figure)
         except:
@@ -199,20 +199,24 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         finally:
             pass
         filepath = self.filepath
-        try:
-            if filepath[-3:] == "dcm":
-                # 读取dicom文件
-                self.console.append(f"Preprocessing {filepath.split(path_sign)[-1]} Image...")
-                image = preprocess(filepath)
-            else:
-                image = Image.imread(filepath)
-        except:
-            self.console.append('ERROR Encountered while processing')
+        image = None
+        # try:
+        if filepath[-3:] == "dcm":
+            # 读取dicom文件
+            self.console.append(f"[INFO] Preprocessing {filepath.split(path_sign)[-1]} Image...")
+            image = preprocess(filepath)
+        else:
+            image = imread(filepath)
+        # except:
+        #     self.console.append('ERROR Encountered while processing')
+        #     return
 
         image = torch.tensor(image[None, None, ...], dtype=torch.float32) / 255
         image = (image - ct_mean) / ct_std
-        image = image.expand(-1, 3, -1, -1)
-
+        try:
+            image = image.expand(-1, 3, -1, -1)
+        except:
+            self.console.append('[ERROR] Unable to expand the image with shape ' + str(image.shape))
         current_model_index = self.models.currentIndex()
 
 
@@ -263,7 +267,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
     def show_result_img(self, signal):
 
         if self.image is None:
-            self.console.append('Image is not selected')
+            self.console.append('[WARNING] Image is not selected')
             return
 
         # 移除旧的画布

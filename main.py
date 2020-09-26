@@ -134,15 +134,14 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.image = _slice
         else:
             self.image = plt.imread(filepath)
-            self.id.setText(" ")
+            # self.id.setText(" ")
             self.length.setText(str(self.image.shape[1]))
             self.width.setText(str(self.image.shape[0]))
-        self.image = torch.tensor(self.image[None, None, ...], dtype=torch.float32) / 255
-        self.image = (self.image - ct_mean) / ct_std
+        self.id.setText(str(self.image.shape))
 
-        while len(self.image) == 1:
-            self.image = self.image[0]
-        plt.imshow(self.image * 255, cmap=plt.cm.gray)
+        # while len(self.image) == 1:
+        #     self.image = self.image[0]
+        plt.imshow(self.image, cmap=plt.cm.gray)
 
         self.imageshow.addWidget(self.plot_figure)
         self.imageshow.addWidget(self.tool)
@@ -160,8 +159,9 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
                 self.foldname.setText(self.fold)
             except:
                 self.foldname.setText("Folder")
-            self.length_label.setText("Length")
-            self.width_label.setText("Width")
+            self.id_label.setText("Shape")
+            self.length_label.setText("Rescale Slope")
+            self.width_label.setText("Rescale Intercept")
             self.label_4.setText("Models")
             self.analysis.setText("Diagnose")
             self.rawimg.setText("Any")
@@ -176,9 +176,9 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             try:
                 self.foldname.setText(self.fold)
             except:
-                self.foldname.setText("影像目录")
-            self.length_label.setText("长")
-            self.width_label.setText("宽")
+                self.foldname.setText("目录")
+            self.length_label.setText("调整比率")
+            self.width_label.setText("调整截距")
             self.label_4.setText("模型选择:")
             self.analysis.setText("开始诊断")
             self.rawimg.setText("原图")
@@ -204,6 +204,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             # 读取dicom文件
             self.console.append(f"[INFO] Preprocessing {filepath.split(path_sign)[-1]} Image...")
             image = preprocess(filepath)
+            self.id.setText(str(image.shape))
         else:
             image = imread(filepath)
         # except:
@@ -242,7 +243,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
         self.result_figure.ax.invert_yaxis()
         self.result_figure.ax.xaxis.set_visible(False)
-        self.result_figure.ax.set_xlim(0, 220)
+        self.result_figure.ax.set_xlim(0, 225)
         self.result_figure.ax.barh(labels, data, left=0, height=0.5)
         self.result_figure.ax.set_yticklabels([])
         self.result_figure.ax.set_title("Probability")
@@ -260,7 +261,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             i += 1
 
         self.resultlayer.addWidget(self.result_figure)
-        self.console.append("Results:")
+        self.console.append(f"[INFO] Diagnosing of {filepath} Complete")
         self.t1_t5()
 
     def show_result_img(self, signal):
@@ -301,6 +302,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         selected_model = Models[selected_index]
         if not selected_model.loaded:
             selected_model.load_state_dict(torch.load(MODEL_PATH[selected_index]))
+        image = self.image
         image = grad_cam(self.image, signal, selected_model)
 
         if image.shape[0] == 3:

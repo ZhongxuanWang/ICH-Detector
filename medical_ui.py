@@ -178,7 +178,7 @@ class Ui_Medicalanalysis(object):
         self.title.setText(_translate("Medicalanalysis", "医学影像诊断分析"))
         self.foldname.setText(_translate("Medicalanalysis", "影像目录"))
         self.fold_select.setText(_translate("Medicalanalysis", "..."))
-        self.id_label.setText(_translate("Medicalanalysis", "频道"))
+        self.id_label.setText(_translate("Medicalanalysis", "形状"))
         self.length_label.setText(_translate("Medicalanalysis", "长"))
         self.width_label.setText(_translate("Medicalanalysis", "宽"))
         self.label_4.setText(_translate("Medicalanalysis", "模型选择："))

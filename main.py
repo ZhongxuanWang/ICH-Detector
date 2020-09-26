@@ -78,8 +78,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.languages.addItem("English")
 
         # 添加model选项
-        self.models.addItems(["Resnet-101", "Densenet-201", "VGG-19"])
-        self.models.setCurrentIndex(1)
+        self.models.addItems(["DenseNet-201", "Resnet-101", "VGG-19"])
+        self.models.setCurrentIndex(0)
 
     # 打开文件夹对话框
     def folddialog(self):
@@ -124,7 +124,6 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.plot_figure = ImageView(width=8, height=8, dpi=110)
         self.tool = NavigationToolbar2QT(self.plot_figure, self)
         if filepath[-3:] == "dcm":
-            # FIXME
             # 读取dicom文件
             _slice = preprocess(filepath)
 
@@ -132,18 +131,18 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.id.setText(_slice.PatientID)
             self.length.setText(str(_slice.pixel_array.shape[1]))
             self.width.setText(str(_slice.pixel_array.shape[0]))
-
-            # 获取dicom数据，绘图
-            self.image = np.stack(_slice.pixel_array)
-            self.image = self.image.astype(np.int16)
-            self.image = np.array(self.image)
+            self.image = _slice
         else:
             self.image = plt.imread(filepath)
             self.id.setText(" ")
             self.length.setText(str(self.image.shape[1]))
             self.width.setText(str(self.image.shape[0]))
+        self.image = torch.tensor(self.image[None, None, ...], dtype=torch.float32) / 255
+        self.image = (self.image - ct_mean) / ct_std
 
-        plt.imshow(self.image, cmap=plt.cm.gray)
+        while len(self.image) == 1:
+            self.image = self.image[0]
+        plt.imshow(self.image * 255, cmap=plt.cm.gray)
 
         self.imageshow.addWidget(self.plot_figure)
         self.imageshow.addWidget(self.tool)
@@ -160,11 +159,11 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             try:
                 self.foldname.setText(self.fold)
             except:
-                self.foldname.setText("Fold Name")
+                self.foldname.setText("Folder")
             self.length_label.setText("Length")
             self.width_label.setText("Width")
             self.label_4.setText("Models")
-            self.analysis.setText("Start")
+            self.analysis.setText("Diagnose")
             self.rawimg.setText("Any")
             self.t1.setText("Epidural")
             self.t2.setText("Intraparenchymal")
@@ -172,8 +171,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.t4.setText("Subarachnoid")
             self.t5.setText("Subdural")
         else:
-            self.setWindowTitle("医学影像分析")
-            self.title.setText("医学影像诊断分析")
+            self.setWindowTitle("脑出血CT使用GradCAM的深度学习诊断程序")
+            self.title.setText("脑出血CT使用GradCAM的深度学习诊断程序")
             try:
                 self.foldname.setText(self.fold)
             except:

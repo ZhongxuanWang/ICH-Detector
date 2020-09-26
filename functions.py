@@ -39,6 +39,7 @@ def jet(image):
 
 
 def grad_cam(image, signal, model):
+    # print(f'Arch {model.arch}')
     # load image and convert to tensor
     ind = torch.tensor([[signal]])
     grad_cam = GradCAM(model)

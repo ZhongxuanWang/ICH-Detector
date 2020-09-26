@@ -9,7 +9,7 @@ from matplotlib.backends.backend_qt5 import NavigationToolbar2QT
 import matplotlib.pyplot as plt
 from PIL import Image
 
-from functions import preprocess
+from functions import preprocess, grad_cam
 from medical_ui import Ui_Medicalanalysis
 from models import MainModel
 
@@ -295,11 +295,10 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.tool = NavigationToolbar2QT(self.plot_figure, self)
 
         selected_index = self.models.currentIndex()
-        import grad_cam
         selected_model = Models[selected_index]
         if not selected_model.loaded:
             selected_model.load_state_dict(torch.load(MODEL_PATH[selected_index]))
-        image = grad_cam.main(self.image, signal, selected_model.arch, selected_model)
+        image = grad_cam(self.image, signal, selected_model)
 
         if image.shape[0] == 3:
             image = image[0]

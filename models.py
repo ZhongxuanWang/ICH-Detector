@@ -5,10 +5,12 @@ from torchvision.models.resnet import resnet101
 from torchvision.models.densenet import densenet201
 from torchvision.models.vgg import vgg19
 
+
 class MainModel(nn.Module):
 
     def __init__(self, arch, num_classes, pretrained=False):
         super().__init__()
+        self.loaded = False
         self.arch = arch
         model = globals()[arch](pretrained=pretrained)
         if arch.startswith('resnet'):
@@ -30,6 +32,11 @@ class MainModel(nn.Module):
         logit = self.fc(feat)
         return logit
 
+    def load_state_dict(self, state_dict,
+                        strict: bool = True):
+        self.loaded = True
+        super().load_state_dict(state_dict, strict)
+
 
 class GradCAM(nn.Module):
 
@@ -43,10 +50,10 @@ class GradCAM(nn.Module):
         logit = torch.gather(logit, 1, ind)
         grad = torch.autograd.grad(logit.sum(), feat)[0]
         with torch.no_grad():
-            weights = grad.mean((2, 3), keepdim=True) # N x C x 1 x 1
-            cam = (weights * feat).sum(1, keepdim=True) # N x 1 x h x w
+            weights = grad.mean((2, 3), keepdim=True)  # N x C x 1 x 1
+            cam = (weights * feat).sum(1, keepdim=True)  # N x 1 x h x w
             cam = F.relu(cam)
-            cam = F.interpolate(cam, x.shape[2:], mode='bilinear', align_corners=True) # N x 1 x H x W
+            cam = F.interpolate(cam, x.shape[2:], mode='bilinear', align_corners=True)  # N x 1 x H x W
             cam = cam - cam.min()
             cam = cam / cam.max()
         return cam

@@ -1,26 +1,41 @@
-from models import GradCAM
+from models import GradCAM, MainModel
 import torch
+from argparse import Namespace
 import numpy as np
-from models import MainModel
+from skimage.io import imsave, imread
+import os
+
+# grayscale to jet
+def jet(image):
+    n = 4 * image[:, :1]
+    r = torch.clamp(torch.min(n-1.5,-n+4.5), 0, 1)
+    g = torch.clamp(torch.min(n-0.5,-n+3.5), 0, 1)
+    b = torch.clamp(torch.min(n+0.5,-n+2.5), 0, 1)
+    return torch.cat((r,g,b), 1)
 
 
-def gc_(image, ind, path):
-    if isinstance(image, np.ndarray):
-        image = torch.tensor(image)
-    image = image.expand(1,3,-1,-1)
-    ind = torch.tensor([[ind]])
-    model = MainModel('densenet201', 6)
-    model.load_state_dict(torch.load(path))
+def main(image, signal, arch, model):
+    # load image and convert to tensor
+    ind = torch.tensor([[signal]])
     grad_cam = GradCAM(model)
     cam = grad_cam(image, ind)
+    # output image with cam
+    cam = jet(cam)
+    image = torch.clamp(image * 0.315 + 0.188, 0, 1)
+    imsave('%s.png' % opts.img_id, np.around(image[0,0].cpu().numpy()*255).astype(np.uint8))
     image = image + cam
+    image = np.moveaxis(image[0].cpu().numpy(), 0, 2)
     image = image / image.max()
-    return image[0].numpy()
+    image = np.around(image*255).astype(np.uint8)
+    imsave('%s-cam.png' % opts.img_id, image)
 
-# def gc(image):
-#     indexes = []
-#     indexes.append(image.numpy()[0])
-#     for ind in range(6):
-#         indexes.append(np.nan_to_num(gc_(image, ind)[0]))
-#     indexes = torch.tensor(indexes)
-#     return indexes
+
+if __name__ == '__main__':
+    # opts = Namespace(
+    #     data_dir='../../../',
+    #     use_gpu=False,
+    #     arch='densenet201',
+    #     img_id='',
+    #     ind=4,
+    #     model_path='../../../trained_models/model_densenet201.pt'
+    # )

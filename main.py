@@ -1,21 +1,31 @@
 import sys
 from PyQt5 import QtWidgets
 import numpy as np
+import os
 import pydicom
 import torch
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT
 import matplotlib.pyplot as plt
-from .functions import preprocess
 from PIL import Image
 
+from functions import preprocess
 from medical_ui import Ui_Medicalanalysis
 from models import MainModel
+
+is_windows = os.name == 'nt'
+path_sign = '\\' if is_windows else '/'
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DENSENET_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
 RESNET_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
 VGG_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
+
+if (is_windows):
+    DENSENET_PATH.replace('/', '\\')
+    RESNET_PATH.replace('/', '\\')
+    VGG_PATH.replace('/', '\\')
+
 MODEL_PATH = [DENSENET_PATH, RESNET_PATH, VGG_PATH]
 
 DenseNet_Model = MainModel('densenet201', 6)
@@ -42,6 +52,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
     # 对程序gui初始化
     def __init__(self):
+        self.image = None
+
         QtWidgets.QMainWindow.__init__(self)
         self.setupUi(self)
         # 设置一些linetext为不可写
@@ -72,7 +84,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
     # 打开文件夹对话框
     def folddialog(self):
         fold = QtWidgets.QFileDialog.getExistingDirectory(self)
-        self.console.append(f"Currently fold -- {fold}")
+        self.console.append(f"Currently Directory is set to: {fold}")
         # 确定是否为有效的文件夹
         if os.path.isdir(fold):
             self.foldname.setText(fold)
@@ -91,7 +103,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
                 self.analysis.setDisabled(False)
                 self.start_analysis()
         else:
-            self.console.append("Please choose a folder.")
+            self.console.append("Please choose a folder to start.")
 
     # 开始对dicom文件解析，绘图
     def start_analysis(self):
@@ -106,13 +118,15 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
         filename = self.imgfile.currentText()
         filepath = os.path.join(self.fold, filename)
+        self.console.append(f"Showing:{filename}")
+
         self.filepath = filepath
         self.plot_figure = ImageView(width=8, height=8, dpi=110)
         self.tool = NavigationToolbar2QT(self.plot_figure, self)
         if filepath[-3:] == "dcm":
             # FIXME
             # 读取dicom文件
-            _slice = pydicom.read_file(filepath)
+            _slice = preprocess(filepath)
 
             # 设置id, 长， 宽
             self.id.setText(_slice.PatientID)
@@ -133,10 +147,9 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
         self.imageshow.addWidget(self.plot_figure)
         self.imageshow.addWidget(self.tool)
-        _img = filepath.split("/")[-1]
+        _img = filepath.split(path_sign)[-1]
         # 显示大标题
         self.plot_figure.fig.suptitle(_img)
-        self.console.append(f"Start Precessing image:{_img}")
         self.t1_t5()
 
     # 程序语言，中文，英文
@@ -167,7 +180,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
                 self.foldname.setText("影像目录")
             self.length_label.setText("长")
             self.width_label.setText("宽")
-            self.label_4.setText("模型选择：")
+            self.label_4.setText("模型选择:")
             self.analysis.setText("开始诊断")
             self.rawimg.setText("原图")
             self.t1.setText("硬膜外阻滞")
@@ -178,7 +191,6 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
     # 程序model分析模块
     def start_prediction(self):
-        self.console.append("Preprocessing...")
         self.console.append("Running...")
         try:
             self.resultlayer.removeWidget(self.result_figure)
@@ -190,6 +202,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         try:
             if filepath[-3:] == "dcm":
                 # 读取dicom文件
+                self.console.append(f"Preprocessing {filepath.split(path_sign)[-1]} Image...")
                 image = preprocess(filepath)
             else:
                 image = Image.imread(filepath)
@@ -248,6 +261,11 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.t1_t5()
 
     def show_result_img(self, signal):
+
+        if self.image is None:
+            self.console.append('Image is not selected')
+            return
+
         # 移除旧的画布
         try:
             self.imageshow.removeWidget(self.plot_figure)
@@ -278,7 +296,10 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
         selected_index = self.models.currentIndex()
         import grad_cam
-        image = grad_cam.gc_(self.image, signal, MODEL_PATH[selected_index])
+        selected_model = Models[selected_index]
+        if not selected_model.loaded:
+            selected_model.load_state_dict(torch.load(MODEL_PATH[selected_index]))
+        image = grad_cam.main(self.image, signal, selected_model.arch, selected_model)
 
         if image.shape[0] == 3:
             image = image[0]

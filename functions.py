@@ -23,3 +23,4 @@ def preprocess(path):
     arr_hu_win[arr_hu > v_max] = v_max
     arr_hu_win = (arr_hu_win - v_min) / (v_max - v_min)
     return arr_hu_win
+

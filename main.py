@@ -248,6 +248,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         #
         #     i += 1
 
+
         self.result_figure = ImageView(width=3, height=2, dpi=80)
         labels = list(results.keys())
         data = np.array(list(results.values()))

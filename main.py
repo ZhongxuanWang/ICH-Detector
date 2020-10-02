@@ -36,6 +36,7 @@ Models = [DenseNet_Model, Resnet_Model, VGG_Model]
 ct_mean = 0.188
 ct_std = 0.315
 
+
 # state_dict = torch.load(PATH_MODEL)
 
 # matplotlib绘图画布
@@ -146,6 +147,18 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.imageshow.addWidget(self.plot_figure)
         self.imageshow.addWidget(self.tool)
         _img = filepath.split(path_sign)[-1]
+
+        if len(self.image.shape) == 3 and self.image.shape[2] == 3:
+            # Grad-CAM data Model
+            self.console.append("[ERROR] This type of image is not currently supported")
+            self.image = None
+            return
+
+        self.image = torch.tensor(self.image[None, None, ...], dtype=torch.float32) / 255
+        self.image = (self.image - ct_mean) / ct_std
+
+        self.image.expand(1, 3, -1, -1)
+
         # 显示大标题
         self.plot_figure.fig.suptitle(_img)
         self.t1_t5()
@@ -160,8 +173,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             except:
                 self.foldname.setText("Folder")
             self.id_label.setText("Shape")
-            self.length_label.setText("Rescale Slope")
-            self.width_label.setText("Rescale Intercept")
+            self.length_label.setText("Slope")
+            self.width_label.setText("Intercept")
             self.label_4.setText("Models")
             self.analysis.setText("Diagnose")
             self.rawimg.setText("Any")
@@ -177,11 +190,11 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
                 self.foldname.setText(self.fold)
             except:
                 self.foldname.setText("目录")
-            self.length_label.setText("调整比率")
-            self.width_label.setText("调整截距")
+            self.length_label.setText("Slope")
+            self.width_label.setText("Intercept")
             self.label_4.setText("模型选择:")
             self.analysis.setText("开始诊断")
-            self.rawimg.setText("原图")
+            self.rawimg.setText("总")
             self.t1.setText("硬膜外阻滞")
             self.t2.setText("脑实质")
             self.t3.setText("脑室内")
@@ -195,8 +208,6 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.resultlayer.removeWidget(self.result_figure)
         except:
             self.resultlayer.removeWidget(self.resultview)
-        finally:
-            pass
         filepath = self.filepath
         image = None
         # try:
@@ -219,8 +230,6 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.console.append('[ERROR] Unable to expand the image with shape ' + str(image.shape))
         current_model_index = self.models.currentIndex()
 
-
-
         results = {
             "Any": 0.0,
             "Epidural": 0.0,
@@ -230,6 +239,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             "Subdural": 0.0,
         }
         i = 0
+
+        # TODO COMPLETE THE FOLLOWING PART
 
         # for (key, item) in results.items():
         #     results[key] = round(result_values[i].item(), 2)
@@ -303,10 +314,13 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         if not selected_model.loaded:
             selected_model.load_state_dict(torch.load(MODEL_PATH[selected_index]))
         image = self.image
-        image = grad_cam(self.image, signal, selected_model)
+        if isinstance(image, np.ndarray):
+            image = torch.tensor(image)
 
-        if image.shape[0] == 3:
-            image = image[0]
+        image = grad_cam(image.expand(1, 3, -1, -1), signal, selected_model)
+
+        # if image.shape[0] == 3:
+        #     image = image[0]
         plt.imshow(image)
 
         self.imageshow.addWidget(self.plot_figure)

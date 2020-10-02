@@ -174,16 +174,16 @@ class Ui_Medicalanalysis(object):
 
     def retranslateUi(self, Medicalanalysis):
         _translate = QtCore.QCoreApplication.translate
-        Medicalanalysis.setWindowTitle(_translate("Medicalanalysis", "医学影像分析"))
+        Medicalanalysis.setWindowTitle(_translate("Medicalanalysis", "脑出血CT使用GradCAM的深度学习诊断程序"))
         self.title.setText(_translate("Medicalanalysis", "医学影像诊断分析"))
         self.foldname.setText(_translate("Medicalanalysis", "影像目录"))
         self.fold_select.setText(_translate("Medicalanalysis", "..."))
         self.id_label.setText(_translate("Medicalanalysis", "形状"))
-        self.length_label.setText(_translate("Medicalanalysis", "长"))
-        self.width_label.setText(_translate("Medicalanalysis", "宽"))
+        self.length_label.setText(_translate("Medicalanalysis", "Slope"))
+        self.width_label.setText(_translate("Medicalanalysis", "Intercept"))
         self.label_4.setText(_translate("Medicalanalysis", "模型选择："))
         self.analysis.setText(_translate("Medicalanalysis", "开始诊断"))
-        self.rawimg.setText(_translate("Medicalanalysis", "原图"))
+        self.rawimg.setText(_translate("Medicalanalysis", "总"))
         self.t1.setText(_translate("Medicalanalysis", "硬膜外阻滞"))
         self.t2.setText(_translate("Medicalanalysis", "脑实质"))
         self.t3.setText(_translate("Medicalanalysis", "脑室内"))

@@ -2,7 +2,6 @@ import sys
 from PyQt5 import QtWidgets
 import numpy as np
 import os
-import pydicom
 import torch
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT
@@ -21,7 +20,7 @@ DENSENET_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
 RESNET_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
 VGG_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
 
-if (is_windows):
+if is_windows:
     DENSENET_PATH.replace('/', '\\')
     RESNET_PATH.replace('/', '\\')
     VGG_PATH.replace('/', '\\')
@@ -49,9 +48,6 @@ class ImageView(FigureCanvas):
 
 # 主程序类
 class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
-    """ 这是程序主类，用于初始化控件，将控件关联functions，做数据处理。 """
-
-    # 对程序gui初始化
     def __init__(self):
         self.image = None
 
@@ -67,12 +63,12 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.languages.activated.connect(self.change_language)
         self.analysis.clicked.connect(self.start_prediction)
 
-        self.rawimg.clicked.connect(lambda: self.show_result_img(0))
-        self.t1.clicked.connect(lambda: self.show_result_img(1))
-        self.t2.clicked.connect(lambda: self.show_result_img(2))
-        self.t3.clicked.connect(lambda: self.show_result_img(3))
-        self.t4.clicked.connect(lambda: self.show_result_img(4))
-        self.t5.clicked.connect(lambda: self.show_result_img(5))
+        self.rawimg.clicked.connect(lambda: self.show_gradcam(0))
+        self.t1.clicked.connect(lambda: self.show_gradcam(1))
+        self.t2.clicked.connect(lambda: self.show_gradcam(2))
+        self.t3.clicked.connect(lambda: self.show_gradcam(3))
+        self.t4.clicked.connect(lambda: self.show_gradcam(4))
+        self.t5.clicked.connect(lambda: self.show_gradcam(5))
 
         # 添加语言选项
         self.languages.addItem("中文")
@@ -135,6 +131,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.image = _slice
         else:
             self.image = plt.imread(filepath)
+            if self.image.ndim == 3:
+                self.image = self.image[:, :, 0]
             # self.id.setText(" ")
             self.length.setText(str(self.image.shape[1]))
             self.width.setText(str(self.image.shape[0]))
@@ -248,7 +246,6 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         #
         #     i += 1
 
-
         self.result_figure = ImageView(width=3, height=2, dpi=80)
         labels = list(results.keys())
         data = np.array(list(results.values()))
@@ -276,7 +273,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.console.append(f"[INFO] Diagnosing of {filepath} Complete")
         self.t1_t5()
 
-    def show_result_img(self, signal):
+    def show_gradcam(self, signal):
 
         if self.image is None:
             self.console.append('[WARNING] Image is not selected')
@@ -314,6 +311,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         selected_model = Models[selected_index]
         if not selected_model.loaded:
             selected_model.load_state_dict(torch.load(MODEL_PATH[selected_index]))
+            selected_model.loaded = True
         image = self.image
         if isinstance(image, np.ndarray):
             image = torch.tensor(image)
@@ -333,7 +331,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             "Intraparenchymal",
             "Intraventricular",
             "Subarachnoid",
-            "Subdural",
+            "Subdural"
         ]
         if signal == 1:
             title = f"{name_list[signal]} - Not Diagnosed"

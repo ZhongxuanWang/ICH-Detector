@@ -32,11 +32,6 @@ class MainModel(nn.Module):
         logit = self.fc(feat)
         return logit
 
-    def load_state_dict(self, state_dict,
-                        strict: bool = True):
-        self.loaded = True
-        super().load_state_dict(state_dict, strict)
-
 
 class GradCAM(nn.Module):
 

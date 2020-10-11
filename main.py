@@ -6,9 +6,8 @@ import torch
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT
 import matplotlib.pyplot as plt
-from skimage.io import imsave, imread
 
-from functions import preprocess, grad_cam
+from functions import preprocess, grad_cam, rgb_to_grey, img_tune
 from medical_ui import Ui_Medicalanalysis
 from models import MainModel
 
@@ -17,8 +16,8 @@ path_sign = '\\' if is_windows else '/'
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 DENSENET_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
-RESNET_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
-VGG_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
+RESNET_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_resnet101.pt"
+VGG_PATH = "/Users/wangzhongxuan/0QIU/trained_models/vgg19/model_vgg19.pt"
 
 if is_windows:
     DENSENET_PATH.replace('/', '\\')
@@ -50,6 +49,7 @@ class ImageView(FigureCanvas):
 class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
     def __init__(self):
         self.image = None
+        self.plot_figure = None
 
         QtWidgets.QMainWindow.__init__(self)
         self.setupUi(self)
@@ -59,9 +59,9 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
         # 设置gui控件与function关联
         self.fold_select.clicked.connect(self.folddialog)
-        self.imgfile.activated.connect(self.start_analysis)
+        self.imgfile.activated.connect(self.show_fig)
         self.languages.activated.connect(self.change_language)
-        self.analysis.clicked.connect(self.start_prediction)
+        self.analysis.clicked.connect(self.start_prediction_btn_clicked)
 
         self.rawimg.clicked.connect(lambda: self.show_gradcam(0))
         self.t1.clicked.connect(lambda: self.show_gradcam(1))
@@ -98,12 +98,12 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
                 # 将文件加入文件选项控件
                 self.imgfile.addItems(files)
                 self.analysis.setDisabled(False)
-                self.start_analysis()
+                self.show_fig()
         else:
             self.console.append("[WARNING] Please choose a folder to start.")
 
     # 开始对dicom文件解析，绘图
-    def start_analysis(self):
+    def show_fig(self):
         # 移除旧的画布
         try:
             self.imageshow.removeWidget(self.plot_figure)
@@ -118,6 +118,9 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.console.append(f"[INFO] Showing:{filename}")
 
         self.filepath = filepath
+
+        plt.close('all')
+
         self.plot_figure = ImageView(width=8, height=8, dpi=110)
         self.tool = NavigationToolbar2QT(self.plot_figure, self)
         if filepath[-3:] == "dcm":
@@ -132,7 +135,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         else:
             self.image = plt.imread(filepath)
             if self.image.ndim == 3:
-                self.image = self.image[:, :, 0]
+                self.image = rgb_to_grey(self.image)
             # self.id.setText(" ")
             self.length.setText(str(self.image.shape[1]))
             self.width.setText(str(self.image.shape[0]))
@@ -140,23 +143,13 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
         # while len(self.image) == 1:
         #     self.image = self.image[0]
-        plt.imshow(self.image, cmap=plt.cm.gray)
-
         self.imageshow.addWidget(self.plot_figure)
         self.imageshow.addWidget(self.tool)
         _img = filepath.split(path_sign)[-1]
 
-        if len(self.image.shape) == 3 and self.image.shape[2] == 3:
-            # Grad-CAM data Model
-            self.console.append("[ERROR] This type of image is not currently supported")
-            self.image = None
-            return
 
-        self.image = torch.tensor(self.image[None, None, ...], dtype=torch.float32) / 255
-        self.image = (self.image - ct_mean) / ct_std
-
-        self.image.expand(1, 3, -1, -1)
-
+        # FIXME. DISPLAY ISSUE
+        plt.imshow(self.image.expand(3, -1, -1))
         # 显示大标题
         self.plot_figure.fig.suptitle(_img)
         self.t1_t5()
@@ -200,7 +193,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.t5.setText("硬脑膜下")
 
     # 程序model分析模块
-    def start_prediction(self):
+    def start_prediction_btn_clicked(self):
+        plt.close('all')
         self.console.append("[INFO] Process starts")
         try:
             self.resultlayer.removeWidget(self.result_figure)
@@ -215,36 +209,38 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             image = preprocess(filepath)
             self.id.setText(str(image.shape))
         else:
-            image = imread(filepath)
+            image = plt.imread(filepath)
         # except:
         #     self.console.append('ERROR Encountered while processing')
         #     return
 
-        image = torch.tensor(image[None, None, ...], dtype=torch.float32) / 255
-        image = (image - ct_mean) / ct_std
-        try:
-            image = image.expand(-1, 3, -1, -1)
-        except:
-            self.console.append('[ERROR] Unable to expand the image with shape ' + str(image.shape))
+        # self.
+
+        if len(image.shape) == 3:
+            image = rgb_to_grey(image)
+
         current_model_index = self.models.currentIndex()
 
+        selected_model = Models[current_model_index]
+        if not selected_model.loaded:
+            selected_model.load_state_dict(torch.load(MODEL_PATH[current_model_index]))
+            selected_model.loaded = True
+            selected_model.eval()
+
+        result = torch.sigmoid(selected_model(torch.tensor(image).expand(1, 3, -1, -1)))[0].detach().numpy() * 100
         results = {
-            "Any": 0.0,
-            "Epidural": 0.0,
-            "Intraparenchymal": 0.0,
-            "Intraventricular": 0.0,
-            "Subarachnoid": 0.0,
-            "Subdural": 0.0,
+            "Any": result[0],
+            "Epidural": result[1],
+            "Intraparenchymal": result[2],
+            "Intraventricular": result[3],
+            "Subarachnoid": result[4],
+            "Subdural": result[5],
         }
+
         i = 0
-
-        # TODO COMPLETE THE FOLLOWING PART
-
-        # for (key, item) in results.items():
-        #     results[key] = round(result_values[i].item(), 2)
-        #     # results[key] = round(prabobility_[i] * 100, 2)
-        #
-        #     i += 1
+        for (key, item) in results.items():
+            results[key] = round(result[i].item(), 4)
+            i += 1
 
         self.result_figure = ImageView(width=3, height=2, dpi=80)
         labels = list(results.keys())
@@ -274,6 +270,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.t1_t5()
 
     def show_gradcam(self, signal):
+        plt.close('all')
 
         if self.image is None:
             self.console.append('[WARNING] Image is not selected')
@@ -312,6 +309,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         if not selected_model.loaded:
             selected_model.load_state_dict(torch.load(MODEL_PATH[selected_index]))
             selected_model.loaded = True
+            selected_model.eval()
         image = self.image
         if isinstance(image, np.ndarray):
             image = torch.tensor(image)
@@ -320,6 +318,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
         # if image.shape[0] == 3:
         #     image = image[0]
+        image = np.array(np.around(torch.clamp(torch.tensor(image) * ct_std + ct_mean, 0, 1) * 255)).astype(np.uint8)
         plt.imshow(image)
 
         self.imageshow.addWidget(self.plot_figure)

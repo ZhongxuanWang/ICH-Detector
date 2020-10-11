@@ -5,6 +5,9 @@ from models import GradCAM
 import torch
 import numpy as np
 
+ct_mean = 0.188
+ct_std = 0.315
+
 
 def preprocess(path):
     if not os.path.isfile(path):
@@ -30,12 +33,24 @@ def preprocess(path):
     return arr_hu_win
 
 
+def img_tune(img):
+    img = torch.tensor(img[None, None, ...], dtype=torch.float32) / 255
+    img = (img - ct_mean) / ct_std
+    return img
+
+
+def rgb_to_grey(img):
+    r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
+    gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
+    return gray
+
+
 def jet(image):
     n = 4 * image[:, :1]
-    r = torch.clamp(torch.min(n-1.5,-n+4.5), 0, 1)
-    g = torch.clamp(torch.min(n-0.5,-n+3.5), 0, 1)
-    b = torch.clamp(torch.min(n+0.5,-n+2.5), 0, 1)
-    return torch.cat((r,g,b), 1)
+    r = torch.clamp(torch.min(n - 1.5, -n + 4.5), 0, 1)
+    g = torch.clamp(torch.min(n - 0.5, -n + 3.5), 0, 1)
+    b = torch.clamp(torch.min(n + 0.5, -n + 2.5), 0, 1)
+    return torch.cat((r, g, b), 1)
 
 
 def grad_cam(image, signal, model):
@@ -51,5 +66,5 @@ def grad_cam(image, signal, model):
     image = image + cam
     image = np.moveaxis(image[0].cpu().numpy(), 0, 2)
     image = image / image.max()
-    image = np.around(image*255).astype(np.uint8)
+    image = np.around(image * 255).astype(np.uint8)
     return image

@@ -1,15 +1,14 @@
 import sys
 from PyQt5 import QtWidgets
-import numpy as np
-import os
-import torch
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5 import NavigationToolbar2QT
 import matplotlib.pyplot as plt
 
-from functions import preprocess, grad_cam, rgb_to_grey, img_tune
+from functions import *
 from medical_ui import Ui_Medicalanalysis
 from models import MainModel
+
+from copy import deepcopy
 
 is_windows = os.name == 'nt'
 path_sign = '\\' if is_windows else '/'
@@ -31,6 +30,12 @@ Resnet_Model = MainModel('resnet101', 6)
 VGG_Model = MainModel('vgg19', 6)
 Models = [DenseNet_Model, Resnet_Model, VGG_Model]
 
+# Threshold of whether is diagnosed gained from ROC Curve
+THRESHOLD = [[0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+             [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+             [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
+             ]  # FIXME: Get the curve, and get the threshold from there. 0.5 IS NOT THE OPTIMAL ONE!
+
 ct_mean = 0.188
 ct_std = 0.315
 
@@ -48,6 +53,8 @@ class ImageView(FigureCanvas):
 # 主程序类
 class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
     def __init__(self):
+        self.fold = None
+        self.start_btn_hit = False
         self.image = None
         self.plot_figure = None
 
@@ -63,6 +70,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.languages.activated.connect(self.change_language)
         self.analysis.clicked.connect(self.start_prediction_btn_clicked)
 
+        self.original.clicked.connect(lambda: self.show_fig())
         self.rawimg.clicked.connect(lambda: self.show_gradcam(0))
         self.t1.clicked.connect(lambda: self.show_gradcam(1))
         self.t2.clicked.connect(lambda: self.show_gradcam(2))
@@ -104,6 +112,10 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
     # 开始对dicom文件解析，绘图
     def show_fig(self):
+        if self.fold is None:
+            self.console.append('[ERROR] You haven\'t opened an image!')
+            return
+        self.start_btn_hit = False
         # 移除旧的画布
         try:
             self.imageshow.removeWidget(self.plot_figure)
@@ -134,8 +146,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.image = _slice
         else:
             self.image = plt.imread(filepath)
-            if self.image.ndim == 3:
-                self.image = rgb_to_grey(self.image)
+            # if self.image.ndim == 3:
+            #     self.image = rgb_to_grey(self.image)
             # self.id.setText(" ")
             self.length.setText(str(self.image.shape[1]))
             self.width.setText(str(self.image.shape[0]))
@@ -146,10 +158,13 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.imageshow.addWidget(self.plot_figure)
         self.imageshow.addWidget(self.tool)
         _img = filepath.split(path_sign)[-1]
+        if len(self.image.shape) == 3:
+            plt.imshow(self.image)
+        else:
+            plt.imshow(self.image, plt.gray())
 
+        # plt.imshow(np.around(torch.clamp(jet(image.expand(1,3,-1,-1)), 0, 1)[0,0].cpu().numpy()*255).astype(np.uint8))
 
-        # FIXME. DISPLAY ISSUE
-        plt.imshow(self.image.expand(3, -1, -1))
         # 显示大标题
         self.plot_figure.fig.suptitle(_img)
         self.t1_t5()
@@ -168,6 +183,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.width_label.setText("Intercept")
             self.label_4.setText("Models")
             self.analysis.setText("Diagnose")
+            self.original.setText('Original')
             self.rawimg.setText("Any")
             self.t1.setText("Epidural")
             self.t2.setText("Intraparenchymal")
@@ -185,6 +201,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.width_label.setText("Intercept")
             self.label_4.setText("模型选择:")
             self.analysis.setText("开始诊断")
+            self.original.setText('原图')
             self.rawimg.setText("总")
             self.t1.setText("硬膜外阻滞")
             self.t2.setText("脑实质")
@@ -194,28 +211,33 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
 
     # 程序model分析模块
     def start_prediction_btn_clicked(self):
+        self.start_btn_hit = True
         plt.close('all')
-        self.console.append("[INFO] Process starts")
+        if self.image is None:
+            self.console.append('[INFO] No image selected')
+            return
+
+        # self.console.append("[INFO] Process starts")
         try:
             self.resultlayer.removeWidget(self.result_figure)
         except:
             self.resultlayer.removeWidget(self.resultview)
-        filepath = self.filepath
-        image = None
-        # try:
-        if filepath[-3:] == "dcm":
-            # 读取dicom文件
-            self.console.append(f"[INFO] Preprocessing {filepath.split(path_sign)[-1]} Image...")
-            image = preprocess(filepath)
-            self.id.setText(str(image.shape))
-        else:
-            image = plt.imread(filepath)
+        # filepath = self.filepath
+        # image = None
+        # # try:
+        # if filepath[-3:] == "dcm":
+        #     # 读取dicom文件
+        #     self.console.append(f"[INFO] Preprocessing {filepath.split(path_sign)[-1]} Image...")
+        #     image = preprocess(filepath)
+        #     self.id.setText(str(image.shape))
+        # else:
+        #     image = plt.imread(filepath)
         # except:
         #     self.console.append('ERROR Encountered while processing')
         #     return
 
         # self.
-
+        image = deepcopy(self.image)
         if len(image.shape) == 3:
             image = rgb_to_grey(image)
 
@@ -227,7 +249,14 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             selected_model.loaded = True
             selected_model.eval()
 
-        result = torch.sigmoid(selected_model(torch.tensor(image).expand(1, 3, -1, -1)))[0].detach().numpy() * 100
+        result = torch.sigmoid(selected_model(torch.tensor(image).expand(1, 3, -1, -1)))[0].detach().numpy()
+        flag = [None, None, None, None, None, None]
+        for i, single_result in enumerate(result):
+            if single_result >= THRESHOLD[current_model_index][i]:
+                flag[i] = 'red'
+            else:
+                flag[i] = 'green'
+
         results = {
             "Any": result[0],
             "Epidural": result[1],
@@ -237,14 +266,15 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             "Subdural": result[5],
         }
 
+        # WHY DOING THIS IS GOOD, BUT I CAN'T DO IN THE FOR LOOP ABOVE???????
         i = 0
         for (key, item) in results.items():
-            results[key] = round(result[i].item(), 4)
+            results[key] = round(result[i].item()* 100, 4)
             i += 1
 
         self.result_figure = ImageView(width=3, height=2, dpi=80)
         labels = list(results.keys())
-        data = np.array(list(results.values()))
+        data = list(results.values())
 
         self.result_figure.ax.invert_yaxis()
         self.result_figure.ax.xaxis.set_visible(False)
@@ -259,14 +289,14 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
                 xy=(item, i + 0.5 / 2),
                 xytext=(3, 3),  # 3 points vertical offset
                 textcoords="offset points",
-                color="black",
+                color=flag[i],
                 ha="left",
                 va="center",
             )
             i += 1
 
         self.resultlayer.addWidget(self.result_figure)
-        self.console.append(f"[INFO] Diagnosing of {filepath} Complete")
+        self.console.append(f"[INFO] Complete.")
         self.t1_t5()
 
     def show_gradcam(self, signal):
@@ -314,11 +344,23 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         if isinstance(image, np.ndarray):
             image = torch.tensor(image)
 
-        image = grad_cam(image.expand(1, 3, -1, -1), signal, selected_model)
+        if len(image.shape) == 3:
+            image = rgb_to_grey(image)
 
+        image = (image - 0.188) / 0.315
+        image = image.expand(1, 3, -1, -1)
+        ind = torch.tensor([[signal]])
+
+        grad_cam = GradCAM(model=selected_model)
+        cam = grad_cam(image.expand(1, 3, -1, -1), ind)
+        cam = jet(cam)
+
+        image = torch.clamp(image * ct_std + ct_mean, 0, 1) + cam
+        image = np.moveaxis(image[0].cpu().numpy(), 0, 2)
+        image = image / image.max()
+        image = np.around(image * 255).astype(np.uint8)
         # if image.shape[0] == 3:
         #     image = image[0]
-        image = np.array(np.around(torch.clamp(torch.tensor(image) * ct_std + ct_mean, 0, 1) * 255)).astype(np.uint8)
         plt.imshow(image)
 
         self.imageshow.addWidget(self.plot_figure)

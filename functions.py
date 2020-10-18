@@ -4,6 +4,7 @@ import os
 from models import GradCAM
 import torch
 import numpy as np
+from main import THRESHOLD
 
 ct_mean = 0.188
 ct_std = 0.315
@@ -53,18 +54,50 @@ def jet(image):
     return torch.cat((r, g, b), 1)
 
 
-# def grad_cam(image, signal, model):
-#     # print(f'Arch {model.arch}')
-#     # load image and convert to tensor
-#     ind = torch.tensor([[signal]])
-#     grad_cam = GradCAM(model)
-#     cam = grad_cam(image, ind)
-#     # output image with cam
-#     cam = jet(cam)
-#     # image = torch.clamp(image * 0.315 + 0.188, 0, 1)
-#     image = torch.clamp(image, 0, 1)
-#     image = image + cam
-#     image = np.moveaxis(image[0].cpu().numpy(), 0, 2)
-#     image = image / image.max()
-#     image = np.around(image * 255).astype(np.uint8)
-#     return image
+def gc_(image, ind, model):
+    image = image.expand(1,3,-1,-1)
+    ind = torch.tensor([[ind]])
+    grad_cam = GradCAM(model)
+    cam = grad_cam(image, ind)
+    image = image + cam
+    image = image / image.max()
+    return image[0].numpy()
+
+
+def gc(image, model):
+    if isinstance(image, torch.tensor.__class__):
+        image = np.array(image)
+    if image.shape == 3:
+        image = image[0]
+    indexes = [image]
+    for ind in range(6):
+        indexes.append(np.nan_to_num(gc_(torch.tensor(image), ind, model)[0]))
+    indexes = torch.tensor(indexes)
+    return indexes
+
+
+def get_results(result):
+    result = torch.sigmoid(result)[0].detach().numpy()
+    flag = [None, None, None, None, None, None]
+    for i, single_result in enumerate(result):
+        if single_result >= THRESHOLD[3][i]:
+            flag[i] = 'red'
+        else:
+            flag[i] = 'green'
+
+    results = {
+        "Any": result[0],
+        "Epidural": result[1],
+        "Intraparenchymal": result[2],
+        "Intraventricular": result[3],
+        "Subarachnoid": result[4],
+        "Subdural": result[5],
+    }
+
+    # WHY DOING THIS IS GOOD, BUT I CAN'T DO IN THE FOR LOOP ABOVE???????
+    i = 0
+    for (key, item) in results.items():
+        results[key] = round(result[i].item()* 100, 4)
+        i += 1
+
+    return results, flag

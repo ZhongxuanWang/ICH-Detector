@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from functions import *
 from medical_ui import Ui_Medicalanalysis
-from models import MainModel
+from models import *
 
 from copy import deepcopy
 
@@ -18,20 +18,25 @@ DENSENET_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_densenet201.pt"
 RESNET_PATH = "/Users/wangzhongxuan/0QIU/trained_models/model_resnet101.pt"
 VGG_PATH = "/Users/wangzhongxuan/0QIU/trained_models/vgg19/model_vgg19.pt"
 
+DENSENET_GRADCAM_PATH = '/Users/wangzhongxuan/0QIU/dn201_gradcam.pt'
+
 if is_windows:
     DENSENET_PATH.replace('/', '\\')
     RESNET_PATH.replace('/', '\\')
     VGG_PATH.replace('/', '\\')
+    DENSENET_GRADCAM_PATH.replace('/', '\\')
 
 MODEL_PATH = [DENSENET_PATH, RESNET_PATH, VGG_PATH]
 
 DenseNet_Model = MainModel('densenet201', 6)
 Resnet_Model = MainModel('resnet101', 6)
 VGG_Model = MainModel('vgg19', 6)
-Models = [DenseNet_Model, Resnet_Model, VGG_Model]
+DenseNet_GradCAM_Model = GradCAMModel()
+Models = [DenseNet_Model, Resnet_Model, VGG_Model, DenseNet_GradCAM_Model]
 
 # Threshold of whether is diagnosed gained from ROC Curve
 THRESHOLD = [[0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
+             [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
              [0.5, 0.5, 0.5, 0.5, 0.5, 0.5],
              [0.5, 0.5, 0.5, 0.5, 0.5, 0.5]
              ]  # FIXME: Get the curve, and get the threshold from there. 0.5 IS NOT THE OPTIMAL ONE!
@@ -57,6 +62,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.start_btn_hit = False
         self.image = None
         self.plot_figure = None
+        self.flag = [None, None, None, None, None, None]
 
         QtWidgets.QMainWindow.__init__(self)
         self.setupUi(self)
@@ -77,6 +83,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.t3.clicked.connect(lambda: self.show_gradcam(3))
         self.t4.clicked.connect(lambda: self.show_gradcam(4))
         self.t5.clicked.connect(lambda: self.show_gradcam(5))
+
+        self.gradcam_analysis.clicked.connect(lambda: self.gradcam_analysis_btn_clicked())
 
         # 添加语言选项
         self.languages.addItem("中文")
@@ -116,6 +124,10 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.console.append('[ERROR] You haven\'t opened an image!')
             return
         self.start_btn_hit = False
+        try:
+            self.resultlayer.removeWidget(self.result_figure)
+        except:
+            self.resultlayer.removeWidget(self.resultview)
         # 移除旧的画布
         try:
             self.imageshow.removeWidget(self.plot_figure)
@@ -181,7 +193,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.id_label.setText("Shape")
             self.length_label.setText("Slope")
             self.width_label.setText("Intercept")
-            self.label_4.setText("Models")
+            self.label_4.setText("Model")
+            self.gradcam_analysis.setText('GradCam-Diag')
             self.analysis.setText("Diagnose")
             self.original.setText('Original')
             self.rawimg.setText("Any")
@@ -199,8 +212,9 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
                 self.foldname.setText("目录")
             self.length_label.setText("Slope")
             self.width_label.setText("Intercept")
-            self.label_4.setText("模型选择:")
-            self.analysis.setText("开始诊断")
+            self.label_4.setText("模型")
+            self.gradcam_analysis.setText('热力图诊断')
+            self.analysis.setText("原图诊断")
             self.original.setText('原图')
             self.rawimg.setText("总")
             self.t1.setText("硬膜外阻滞")
@@ -208,6 +222,48 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.t3.setText("脑室内")
             self.t4.setText("膜下腔")
             self.t5.setText("硬脑膜下")
+
+    def gradcam_analysis_btn_clicked(self):
+        if self.models.currentIndex() != 0:
+            self.console.append('[ERROR] Only Dense-Net 201 Model is supported for GradCAM result diagnoses.')
+            return
+        if not Models[3].loaded:
+            Models[3].load_state_dict(torch.load(DENSENET_GRADCAM_PATH))
+            Models[3].loaded = True
+        image = deepcopy(self.image)
+        if len(image.shape) == 3:
+            self.console.append('[WARNING] For Heatmap, please use GradCAM Diagnose for optimal result')
+            image = rgb_to_grey(image)
+        results, flags = get_results(Models[3](gc(image, model=Models[2]).expand(1, -1, -1, -1)))
+        labels = ['Any']
+        data = [results['Any']]
+
+        try:
+            self.resultlayer.removeWidget(self.result_figure)
+        except:
+            self.resultlayer.removeWidget(self.resultview)
+
+        self.result_figure = ImageView(width=3, height=2, dpi=80)
+        self.result_figure.ax.invert_yaxis()
+        self.result_figure.ax.xaxis.set_visible(False)
+        self.result_figure.ax.set_xlim(0, 225)
+        self.result_figure.ax.barh(labels, data, left=0, height=0.5)
+        self.result_figure.ax.set_yticklabels([])
+        self.result_figure.ax.set_title("GradCAM Results Reliability")
+        for i, (key, item) in enumerate(results.items()):
+            self.result_figure.ax.annotate(
+                f"{item}% -- {key}",
+                xy=(item, i + 0.5 / 2),
+                xytext=(3, 3),  # 3 points vertical offset
+                textcoords="offset points",
+                color=flags[i],
+                ha="left",
+                va="center",
+            )
+
+        self.resultlayer.addWidget(self.result_figure)
+        self.console.append(f"[INFO] Complete.")
+        self.t1_t5()
 
     # 程序model分析模块
     def start_prediction_btn_clicked(self):
@@ -239,6 +295,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         # self.
         image = deepcopy(self.image)
         if len(image.shape) == 3:
+            self.console.append('[WARNING] For Heatmap, please use GradCAM Diagnose for optimal result')
             image = rgb_to_grey(image)
 
         current_model_index = self.models.currentIndex()
@@ -249,28 +306,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             selected_model.loaded = True
             selected_model.eval()
 
-        result = torch.sigmoid(selected_model(torch.tensor(image).expand(1, 3, -1, -1)))[0].detach().numpy()
-        flag = [None, None, None, None, None, None]
-        for i, single_result in enumerate(result):
-            if single_result >= THRESHOLD[current_model_index][i]:
-                flag[i] = 'red'
-            else:
-                flag[i] = 'green'
-
-        results = {
-            "Any": result[0],
-            "Epidural": result[1],
-            "Intraparenchymal": result[2],
-            "Intraventricular": result[3],
-            "Subarachnoid": result[4],
-            "Subdural": result[5],
-        }
-
-        # WHY DOING THIS IS GOOD, BUT I CAN'T DO IN THE FOR LOOP ABOVE???????
-        i = 0
-        for (key, item) in results.items():
-            results[key] = round(result[i].item()* 100, 4)
-            i += 1
+        results, self.flag = get_results(selected_model(torch.tensor(image).expand(1, 3, -1, -1)))
 
         self.result_figure = ImageView(width=3, height=2, dpi=80)
         labels = list(results.keys())
@@ -289,7 +325,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
                 xy=(item, i + 0.5 / 2),
                 xytext=(3, 3),  # 3 points vertical offset
                 textcoords="offset points",
-                color=flag[i],
+                color=self.flag[i],
                 ha="left",
                 va="center",
             )
@@ -300,6 +336,10 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.t1_t5()
 
     def show_gradcam(self, signal):
+        if not self.start_btn_hit:
+            self.console.append('[ERROR] Please Diagnose the image first')
+            return
+
         plt.close('all')
 
         if self.image is None:
@@ -345,6 +385,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             image = torch.tensor(image)
 
         if len(image.shape) == 3:
+            self.console.append('[WARNING] For Heatmap, please use GradCAM Diagnose for optimal result')
             image = rgb_to_grey(image)
 
         image = (image - 0.188) / 0.315
@@ -374,7 +415,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             "Subarachnoid",
             "Subdural"
         ]
-        if signal == 1:
+        if self.flag[signal] == 'green':
             title = f"{name_list[signal]} - Not Diagnosed"
         else:
             title = f"{name_list[signal]} - Diagnosed"

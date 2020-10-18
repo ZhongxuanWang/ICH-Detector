@@ -89,3 +89,24 @@ class GradCAM(nn.Module):
         else:
             raise Exception('unkown architecture')
         return feat, logit
+
+
+class GradCAMModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.arch = 'densenet201'
+        self.loaded = False
+        model = densenet201()
+        n_feat = model.classifier.in_features
+        model.classifier = nn.Sequential()
+        self.feature = model
+        self.fc = nn.Linear(n_feat, 6)
+        self.feature.features.conv0 = torch.nn.Sequential(
+            torch.nn.Conv2d(7, 3, (7, 7), (2, 2), (3, 3), bias=False),
+            self.feature.features.conv0
+        )
+
+    def forward(self, x):
+        feat = self.feature(x)
+        logit = self.fc(feat)
+        return logit

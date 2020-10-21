@@ -94,6 +94,8 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.models.addItems(["DenseNet-201", "Resnet-101", "VGG-19"])
         self.models.setCurrentIndex(0)
 
+        self.change_to_english()
+
     # 打开文件夹对话框
     def folddialog(self):
         fold = QtWidgets.QFileDialog.getExistingDirectory(self)
@@ -182,6 +184,10 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
         self.t1_t5()
 
     # 程序语言，中文，英文
+    def change_to_english(self):
+        self.languages.setCurrentIndex(1)
+        self.change_language()
+
     def change_language(self):
         if self.languages.currentText() == "English":
             self.setWindowTitle("ICH deep learning detector")
@@ -194,7 +200,7 @@ class Main(QtWidgets.QMainWindow, Ui_Medicalanalysis):
             self.length_label.setText("Slope")
             self.width_label.setText("Intercept")
             self.label_4.setText("Model")
-            self.gradcam_analysis.setText('GradCam-Diag')
+            self.gradcam_analysis.setText('GradCam')
             self.analysis.setText("Diagnose")
             self.original.setText('Original')
             self.rawimg.setText("Any")
